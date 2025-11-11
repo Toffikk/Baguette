@@ -20,14 +20,25 @@ jobs:
           gh auth login --with-token <<< "${{ secrets.BOT_TOKEN }}"
 
       - name: Check if workflow should run
-        id: check_issue
+        id: check_should_run
         run: |
           ISSUE=$(gh issue list --author baguette-maintainer-bot --state open --json number --jq '.[0].number // empty')
+          CURRENT_CANVAS_COMMIT=$(grep '^canvasCommit' gradle.properties | awk -F '=' '{print $2}' | tr -d ' ')
+          LATEST_CANVAS_COMMIT=$(curl -s https://api.github.com/repos/CraftCanvasMC/Canvas/commits/HEAD | jq -r '.sha')
+
           echo "ISSUE=$ISSUE" >> $GITHUB_ENV
+          echo "CURRENT_CANVAS_COMMIT=$CURRENT_CANVAS_COMMIT" >> $GITHUB_ENV
+          echo "LATEST_CANVAS_COMMIT=$LATEST_CANVAS_COMMIT" >> $GITHUB_ENV
+
+          if [ "$ISSUE" != "" ] || [ "$CURRENT_CANVAS_COMMIT" = "$LATEST_CANVAS_COMMIT" ]; then
+            echo "SKIP_WORKFLOW=true" >> $GITHUB_ENV
+          else
+            echo "SKIP_WORKFLOW=false" >> $GITHUB_ENV
+          fi
 
       - name: Fetch upstream weaver version
         id: plugin
-        if: env.ISSUE == ''
+        if: env.SKIP_WORKFLOW == false
         run: |
           VERSION=$(curl -s -H "Accept: application/vnd.github.v3.raw" \
             https://raw.githubusercontent.com/CraftCanvasMC/Canvas/HEAD/build.gradle.kts \
@@ -38,14 +49,14 @@ jobs:
           echo "Latest Weaver version: $VERSION"
 
       - name: Update weaver version
-        if: env.ISSUE == ''
+        if: env.SKIP_WORKFLOW == false
         run: |
           echo "Updating weaver-patcher to $WEAVER_VERSION in $FILE_PATH"
           sed -i -E "s/(id\\(\"$PLUGIN_ID\"\\) version \")[^\"]+\"/\1$WEAVER_VERSION\"/" $FILE_PATH
 
       - name: Update canvas refs
         id: upstream_refs
-        if: env.ISSUE == ''
+        if: env.SKIP_WORKFLOW == false
         run: |
           UPSTREAM_FILE=$(curl -s https://raw.githubusercontent.com/CraftCanvasMC/Canvas/HEAD/gradle.properties)
           
@@ -55,12 +66,10 @@ jobs:
           echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
           echo "Upstream mcVersion: $UPSTREAM_MC_VERSION, version: $UPSTREAM_VERSION"
 
-          CANVAS_COMMIT=$(curl -s https://api.github.com/repos/CraftCanvasMC/Canvas/commits/HEAD | jq -r '.sha')
-          echo "CANVAS_COMMIT=$CANVAS_COMMIT" >> $GITHUB_ENV
-          echo "Latest Canvas commit: $CANVAS_COMMIT"
+          echo "Latest Canvas commit: $LATEST_CANVAS_COMMIT"
 
-          echo "Updating canvasCommit in gradle.properties to $CANVAS_COMMIT"
-          sed -i -E "s/^(canvasCommit = ).*$/\1$CANVAS_COMMIT/" gradle.properties
+          echo "Updating canvasCommit in gradle.properties to $LATEST_CANVAS_COMMIT"
+          sed -i -E "s/^(canvasCommit = ).*$/\1$LATESTCANVAS_COMMIT/" gradle.properties
 
           CURRENT_MC_VERSION=$(grep '^mcVersion' gradle.properties | awk -F '=' '{print $2}' | tr -d ' ')
           if [ "$CURRENT_MC_VERSION" != "$UPSTREAM_MC_VERSION" ]; then
@@ -85,7 +94,7 @@ jobs:
 
       - name: Run Gradle build
         id: build
-        if: env.ISSUE == ''
+        if: env.SKIP_WORKFLOW == false
         run: |
           git config --global user.name "baguette-maintainer-bot"
           git config --global user.email "baguette.maintainer.bot@gmail.com"
@@ -98,14 +107,14 @@ jobs:
         continue-on-error: true
 
       - name: Create an issue if apply failed
-        if: env.APPLY_FAILED == 'true' && env.ISSUE == ''
+        if: env.APPLY_FAILED == 'true' && env.SKIP_WORKFLOW == false
         run: |
           gh issue create \
             --title "[BOT] Failed to apply Baguette patches" \
             --body "Failed to apply patches after updating Canvas to $CANVAS_COMMIT" \
     
       - name: Create an issue if build failed
-        if: env.BUILD_FAILED == 'true' && env.ISSUE == ''
+        if: env.BUILD_FAILED == 'true' && env.SKIP_WORKFLOW == false
         run: |
           gh issue create \
             --title "[BOT] Failed to build Baguette" \
@@ -113,9 +122,8 @@ jobs:
 
             
       - name: Commit changes
-        if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true' && env.ISSUE == ''
+        if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true' && env.SKIP_WORKFLOW == false
         run: |
           git add .
-          git diff --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: Updated upstream (Canvas)"
           git push https://x-access-token:${{ secrets.PUSH_TOKEN }}@github.com/${{ github.repository }}.git
