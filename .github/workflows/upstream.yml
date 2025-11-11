@@ -17,6 +17,8 @@ jobs:
 
       - name: Authenticate GitHub
         run: |
+          git config user.name "baguette-maintainer-bot"
+          git config user.email "baguette.maintainer.bot@gmail.com"
           gh auth login --with-token <<< "${{ secrets.BOT_TOKEN }}"
 
       - name: Check if workflow should run
@@ -87,8 +89,6 @@ jobs:
       - name: Commit changes
         if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true'
         run: |
-          git config user.name "baguette-maintainer-bot"
-          git config user.email "baguette.maintainer.bot@gmail.com"
           git add .
           git diff --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: Updated upstream (Canvas)"
