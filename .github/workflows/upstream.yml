@@ -69,7 +69,7 @@ jobs:
           echo "Latest Canvas commit: $LATEST_CANVAS_COMMIT"
 
           echo "Updating canvasCommit in gradle.properties to $LATEST_CANVAS_COMMIT"
-          sed -i -E "s/^(canvasCommit = ).*$/\1$LATESTCANVAS_COMMIT/" gradle.properties
+          sed -i -E "s/^(canvasCommit = ).*$/\1$LATEST_CANVAS_COMMIT/" gradle.properties
 
           CURRENT_MC_VERSION=$(grep '^mcVersion' gradle.properties | awk -F '=' '{print $2}' | tr -d ' ')
           if [ "$CURRENT_MC_VERSION" != "$UPSTREAM_MC_VERSION" ]; then
@@ -120,10 +120,23 @@ jobs:
             --title "[BOT] Failed to build Baguette" \
             --body "Failed to build after updating Canvas to $CANVAS_COMMIT" \
 
-            
+      - name: Generate commit description
+        if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true' && env.SKIP_WORKFLOW == false
+        run: |
+          UPDATES=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/CraftCanvasMC/Canvas/compare/$CURRENT_CANVAS_COMMIT...$LATEST_CANVAS_COMMIT" \
+            | jq -r '.commits[] | "Canvas@\(.sha[:7]) - \(.commit.message | split("\n")[0])"')
+
+          DISCLAIMER="Upstream has released updates that appear to apply and compile correctly."
+
+          COMMIT_MESSAGE="chore: Updated upstream (Canvas)\n\n${DISCLAIMER}\n\nCanvas Changes:\n${UPDATES}"
+
+          echo -e "$COMMIT_MESSAGE" > commit_message.txt
+  
       - name: Commit changes
         if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true' && env.SKIP_WORKFLOW == false
         run: |
           git add .
-          git commit -m "chore: Updated upstream (Canvas)"
+          git restore --staged commit-message.txt
+          git commit -F commit-message.txt
           git push https://x-access-token:${{ secrets.PUSH_TOKEN }}@github.com/${{ github.repository }}.git
