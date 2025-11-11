@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync-build:
+  update-upstream:
     runs-on: ubuntu-latest
     env:
       PLUGIN_ID: "io.canvasmc.weaver.patcher"
@@ -37,25 +37,51 @@ jobs:
           echo "WEAVER_VERSION=$VERSION" >> $GITHUB_ENV
           echo "Latest Weaver version: $VERSION"
 
-      - name: Fetch latest Canvas commit
-        id: canvas_commit
-        if: env.ISSUE == ''
-        run: |
-          CANVAS_COMMIT=$(curl -s https://api.github.com/repos/CraftCanvasMC/Canvas/commits/HEAD | jq -r '.sha')
-          echo "CANVAS_COMMIT=$CANVAS_COMMIT" >> $GITHUB_ENV
-          echo "Latest Canvas commit: $CANVAS_COMMIT"
-
       - name: Update weaver version
         if: env.ISSUE == ''
         run: |
           echo "Updating weaver-patcher to $WEAVER_VERSION in $FILE_PATH"
           sed -i -E "s/(id\\(\"$PLUGIN_ID\"\\) version \")[^\"]+\"/\1$WEAVER_VERSION\"/" $FILE_PATH
 
-      - name: Update canvas ref
+      - name: Update canvas refs
+        id: upstream_refs
         if: env.ISSUE == ''
         run: |
+          UPSTREAM_FILE=$(curl -s https://raw.githubusercontent.com/CraftCanvasMC/Canvas/HEAD/gradle.properties)
+          
+          UPSTREAM_MC_VERSION=$(echo "$UPSTREAM_FILE" | grep '^mcVersion' | awk -F '=' '{print $2}' | tr -d ' ')
+          UPSTREAM_VERSION=$(echo "$UPSTREAM_FILE" | grep '^version' | awk -F '=' '{print $2}' | tr -d ' ')
+          echo "UPSTREAM_MC_VERSION=$UPSTREAM_MC_VERSION" >> $GITHUB_ENV
+          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
+          echo "Upstream mcVersion: $UPSTREAM_MC_VERSION, version: $UPSTREAM_VERSION"
+
+          CANVAS_COMMIT=$(curl -s https://api.github.com/repos/CraftCanvasMC/Canvas/commits/HEAD | jq -r '.sha')
+          echo "CANVAS_COMMIT=$CANVAS_COMMIT" >> $GITHUB_ENV
+          echo "Latest Canvas commit: $CANVAS_COMMIT"
+
           echo "Updating canvasCommit in gradle.properties to $CANVAS_COMMIT"
           sed -i -E "s/^(canvasCommit = ).*$/\1$CANVAS_COMMIT/" gradle.properties
+
+          CURRENT_MC_VERSION=$(grep '^mcVersion' gradle.properties | awk -F '=' '{print $2}' | tr -d ' ')
+          if [ "$CURRENT_MC_VERSION" != "$UPSTREAM_MC_VERSION" ]; then
+            echo "Updating mcVersion from $CURRENT_MC_VERSION to $UPSTREAM_MC_VERSION"
+            sed -i -E "s/^(mcVersion = ).*$/\1$UPSTREAM_MC_VERSION/" gradle.properties
+
+            CURRENT_VERSION=$(grep '^version' gradle.properties | awk -F '=' '{print $2}' | tr -d ' ')
+            echo "Updating version from $CURRENT_VERSION to $UPSTREAM_VERSION"
+            sed -i -E "s/^(version = ).*$/\1$UPSTREAM_VERSION/" gradle.properties
+          else
+            echo "mcVersion is already up-to-date ($CURRENT_MC_VERSION), version remains unchanged"
+          fi
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Run Gradle build
         id: build
