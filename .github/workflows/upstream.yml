@@ -96,7 +96,7 @@ jobs:
 
       - name: Run Gradle build
         id: build
-        if: env.SKIP_WORKFLOW == 'false'
+        if: env.SKIP_WORKFLOW == 'false' && false # for testing
         run: |
           git config --global user.name "baguette-maintainer-bot"
           git config --global user.email "baguette.maintainer.bot@gmail.com"
@@ -139,6 +139,6 @@ jobs:
         if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true' && env.SKIP_WORKFLOW == 'false'
         run: |
           git add .
-          git restore --staged commit-message.txt
-          git commit -F commit-message.txt
+          git restore --staged commit_message.txt
+          git commit -F commit_message.txt
           git push https://x-access-token:${{ secrets.PUSH_TOKEN }}@github.com/${{ github.repository }}.git
