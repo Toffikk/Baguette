@@ -17,16 +17,14 @@ jobs:
 
       - name: Authenticate GitHub
         run: |
-          git config user.name "baguette-maintainer-bot"
-          git config user.email "baguette.maintainer.bot@gmail.com"
           gh auth login --with-token <<< "${{ secrets.BOT_TOKEN }}"
 
       - name: Check if workflow should run
         id: check_issue
         run: |
-          ISSUE=$(gh issue list --label build-failure --state open --json number --jq '.[0].number')
+          ISSUE=$(gh issue list --author baguette-maintainer-bot --state open --json number --jq '.[0].number // empty')
           if [ -n "$ISSUE" ]; then
-            echo "Found open build-failure issue #$ISSUE — skipping workflow"
+            echo "Found open apply/build failure issue #$ISSUE — skipping workflow"
             exit 0
           fi
 
@@ -61,6 +59,8 @@ jobs:
       - name: Run Gradle build
         id: build
         run: |
+          git config --global user.name "baguette-maintainer-bot"
+          git config --global user.email "baguette.maintainer.bot@gmail.com"
           ./gradlew applyAllPatches || echo "APPLY_FAILED=true" >> $GITHUB_ENV
           ./gradlew rebuildCanvasSingleFilePatches
           ./gradlew rebuildPaperApiPatches
@@ -73,17 +73,15 @@ jobs:
         if: env.APPLY_FAILED == 'true'
         run: |
           gh issue create \
-            --title "Failed to apply Baguette patches after updating to latest Canvas" \
+            --title "[BOT] Failed to apply Baguette patches" \
             --body "Failed to apply patches after updating Canvas to $CANVAS_COMMIT" \
-            --label "build-failure"
     
       - name: Create an issue if build failed
         if: env.BUILD_FAILED == 'true'
         run: |
           gh issue create \
-            --title "Failed to build Baguette after updating to latest Canvas" \
+            --title "[BOT] Failed to build Baguette" \
             --body "Failed to build after updating Canvas to $CANVAS_COMMIT" \
-            --label "build-failure"
 
             
       - name: Commit changes
