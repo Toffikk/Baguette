@@ -15,8 +15,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v5
 
-      - name: Authenticate GitHub
+      - name: Authenticate
         run: |
+          git config --global user.name "baguette-maintainer-bot"
+          git config --global user.email "baguette.maintainer.bot@gmail.com"
           gh auth login --with-token <<< "${{ secrets.BOT_TOKEN }}"
 
       - name: Check if workflow should run
@@ -98,8 +100,6 @@ jobs:
         id: build
         if: env.SKIP_WORKFLOW == 'false' && false # for testing
         run: |
-          git config --global user.name "baguette-maintainer-bot"
-          git config --global user.email "baguette.maintainer.bot@gmail.com"
           ./gradlew applyAllPatches || echo "APPLY_FAILED=true" >> $GITHUB_ENV
           ./gradlew rebuildCanvasSingleFilePatches
           ./gradlew rebuildPaperApiPatches
