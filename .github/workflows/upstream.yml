@@ -23,13 +23,11 @@ jobs:
         id: check_issue
         run: |
           ISSUE=$(gh issue list --author baguette-maintainer-bot --state open --json number --jq '.[0].number // empty')
-          if [ -n "$ISSUE" ]; then
-            echo "Found open apply/build failure issue #$ISSUE — skipping workflow"
-            exit 0
-          fi
+          echo "ISSUE=$ISSUE" >> $GITHUB_ENV
 
       - name: Fetch upstream weaver version
         id: plugin
+        if: env.ISSUE == ''
         run: |
           VERSION=$(curl -s -H "Accept: application/vnd.github.v3.raw" \
             https://raw.githubusercontent.com/CraftCanvasMC/Canvas/HEAD/build.gradle.kts \
@@ -41,23 +39,27 @@ jobs:
 
       - name: Fetch latest Canvas commit
         id: canvas_commit
+        if: env.ISSUE == ''
         run: |
           CANVAS_COMMIT=$(curl -s https://api.github.com/repos/CraftCanvasMC/Canvas/commits/HEAD | jq -r '.sha')
           echo "CANVAS_COMMIT=$CANVAS_COMMIT" >> $GITHUB_ENV
           echo "Latest Canvas commit: $CANVAS_COMMIT"
 
       - name: Update weaver version
+        if: env.ISSUE == ''
         run: |
           echo "Updating weaver-patcher to $WEAVER_VERSION in $FILE_PATH"
           sed -i -E "s/(id\\(\"$PLUGIN_ID\"\\) version \")[^\"]+\"/\1$WEAVER_VERSION\"/" $FILE_PATH
 
       - name: Update canvas ref
+        if: env.ISSUE == ''
         run: |
           echo "Updating canvasCommit in gradle.properties to $CANVAS_COMMIT"
           sed -i -E "s/^(canvasCommit = ).*$/\1$CANVAS_COMMIT/" gradle.properties
 
       - name: Run Gradle build
         id: build
+        if: env.ISSUE == ''
         run: |
           git config --global user.name "baguette-maintainer-bot"
           git config --global user.email "baguette.maintainer.bot@gmail.com"
@@ -70,14 +72,14 @@ jobs:
         continue-on-error: true
 
       - name: Create an issue if apply failed
-        if: env.APPLY_FAILED == 'true'
+        if: env.APPLY_FAILED == 'true' && env.ISSUE == ''
         run: |
           gh issue create \
             --title "[BOT] Failed to apply Baguette patches" \
             --body "Failed to apply patches after updating Canvas to $CANVAS_COMMIT" \
     
       - name: Create an issue if build failed
-        if: env.BUILD_FAILED == 'true'
+        if: env.BUILD_FAILED == 'true' && env.ISSUE == ''
         run: |
           gh issue create \
             --title "[BOT] Failed to build Baguette" \
@@ -85,7 +87,7 @@ jobs:
 
             
       - name: Commit changes
-        if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true'
+        if: env.BUILD_FAILED != 'true' && env.APPLY_FAILED != 'true' && env.ISSUE == ''
         run: |
           git add .
           git diff --quiet && echo "No changes to commit" && exit 0
