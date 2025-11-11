@@ -131,7 +131,7 @@ jobs:
 
           DISCLAIMER="Upstream has released updates that appear to apply and compile correctly. The changes in this commit are automated, meaning there might be things missing."
 
-          COMMIT_MESSAGE="chore: Updated upstream (Canvas)\n\n${DISCLAIMER}\n\nCanvas Changes:\n${UPDATES}"
+          COMMIT_MESSAGE="Updated upstream (Canvas)\n\n${DISCLAIMER}\n\nCanvas Changes:\n${UPDATES}"
 
           echo -e "$COMMIT_MESSAGE" > commit_message.txt
   
