@@ -98,7 +98,7 @@ jobs:
 
       - name: Run Gradle build
         id: build
-        if: env.SKIP_WORKFLOW == 'false' && false # for testing
+        if: env.SKIP_WORKFLOW == 'false'
         run: |
           ./gradlew applyAllPatches || echo "APPLY_FAILED=true" >> $GITHUB_ENV
           ./gradlew rebuildCanvasSingleFilePatches
@@ -129,9 +129,9 @@ jobs:
             "https://api.github.com/repos/CraftCanvasMC/Canvas/compare/$CURRENT_CANVAS_COMMIT...$LATEST_CANVAS_COMMIT" \
             | jq -r '.commits[] | "CraftCanvasMC/Canvas@\(.sha[:7]) - \(.commit.message | split("\n")[0])"')
 
-          DISCLAIMER="Upstream has released updates that appear to apply and compile correctly."
+          DISCLAIMER="Upstream has released updates that appear to apply and compile correctly. The changes in this commit are automated, meaning there might be things missing"
 
-          COMMIT_MESSAGE="chore: sync canvas changes\n\n${DISCLAIMER}\n\nCanvas Changes:\n${UPDATES}"
+          COMMIT_MESSAGE="chore: Updated upstream (Canvas)\n\n${DISCLAIMER}\n\nCanvas Changes:\n${UPDATES}"
 
           echo -e "$COMMIT_MESSAGE" > commit_message.txt
   
